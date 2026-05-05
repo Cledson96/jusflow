@@ -25,6 +25,14 @@ export class LeadsService {
     if (!input.origin) {
       throw new BadRequestException("Lead origin is required");
     }
+    if (input.clientId) {
+      const client = await this.prisma.client.findFirst({
+        where: { id: input.clientId, organizationId }
+      });
+      if (!client) {
+        throw new BadRequestException("Client does not belong to this organization");
+      }
+    }
 
     const lead = await this.prisma.lead.create({
       data: {

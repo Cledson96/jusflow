@@ -78,9 +78,26 @@ export class CasesService {
       throw new BadRequestException("clientId, caseTypeId and title are required");
     }
 
-    const stage = await this.prisma.pipelineStage.findFirst({
-      where: { organizationId, key: "NEW_CONTACT" }
-    });
+    const [client, caseType, stage] = await Promise.all([
+      this.prisma.client.findFirst({ where: { id: input.clientId, organizationId } }),
+      this.prisma.caseType.findFirst({ where: { id: input.caseTypeId, organizationId } }),
+      this.prisma.pipelineStage.findFirst({
+        where: { organizationId, key: "NEW_CONTACT" }
+      })
+    ]);
+
+    if (!client || !caseType) {
+      throw new NotFoundException("Client or case type not found in this organization");
+    }
+
+    if (input.leadId) {
+      const lead = await this.prisma.lead.findFirst({
+        where: { id: input.leadId, organizationId }
+      });
+      if (!lead) {
+        throw new NotFoundException("Lead not found in this organization");
+      }
+    }
 
     const created = await this.prisma.case.create({
       data: {
@@ -110,6 +127,10 @@ export class CasesService {
     this.tenantAccess.assertMembership({ organizationId, memberships: user.memberships });
     if (!Object.values(CaseStatus).includes(status as CaseStatus)) {
       throw new BadRequestException("Invalid status");
+    }
+    const existing = await this.prisma.case.findFirst({ where: { id, organizationId } });
+    if (!existing) {
+      throw new NotFoundException("Case not found");
     }
     const stage = await this.prisma.pipelineStage.findFirst({
       where: { organizationId, key: status as CaseStatus }

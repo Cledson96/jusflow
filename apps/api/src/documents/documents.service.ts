@@ -31,6 +31,11 @@ export class DocumentsService {
   async update(organizationId: string, user: any, caseId: string, documentId: string, input: any) {
     this.tenantAccess.assertMembership({ organizationId, memberships: user.memberships });
     await this.assertCase(organizationId, caseId);
+    const existing = await this.prisma.caseDocument.findFirst({
+      where: { id: documentId, caseId, case: { organizationId } }
+    });
+    if (!existing) throw new NotFoundException("Document not found");
+
     const storagePath =
       input.fileName && input.base64
         ? `${organizationId}/${caseId}/${documentId}/${input.fileName}`
