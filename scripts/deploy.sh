@@ -5,8 +5,8 @@ APP_DIR="${APP_DIR:-/opt/jurisflow}"
 APP_ENV_FILE="${APP_ENV_FILE:-.env.production}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 DEPLOY_TARGET="${DEPLOY_TARGET:-all}"
-API_IMAGE_TAG="${API_IMAGE_TAG:-main}"
-WEB_IMAGE_TAG="${WEB_IMAGE_TAG:-main}"
+API_IMAGE_TAG="${API_IMAGE_TAG:-latest}"
+WEB_IMAGE_TAG="${WEB_IMAGE_TAG:-latest}"
 RUN_SEED="${RUN_SEED:-false}"
 
 if [[ ! -f "$APP_DIR/$APP_ENV_FILE" ]]; then
@@ -35,7 +35,7 @@ echo "Available compose services:"
 case "$DEPLOY_TARGET" in
   web)
     "${compose_cmd[@]}" pull web
-    "${compose_cmd[@]}" up -d --remove-orphans web
+    "${compose_cmd[@]}" up -d --remove-orphans --no-deps web
     ;;
   api)
     "${compose_cmd[@]}" pull api
