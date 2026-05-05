@@ -95,10 +95,12 @@ jobs:
             test -n "$APP_DIR"
             cd "$APP_DIR"
             bash ./scripts/deploy.sh
-            for attempt in 1 2 3 4 5; do
-              if curl --fail --silent http://127.0.0.1:4002/docs >/dev/null; then
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              if curl --fail --silent http://127.0.0.1:4002/api/health >/dev/null; then
                 exit 0
               fi
               sleep 3
             done
+            docker compose -f docker-compose.yml --env-file .env.production ps
+            docker compose -f docker-compose.yml --env-file .env.production logs --tail=120 api
             exit 1

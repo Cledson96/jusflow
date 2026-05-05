@@ -10,6 +10,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { AiModule } from "./ai/ai.module";
 import { CommonModule } from "./common/common.module";
 import { AuthModule } from "./auth/auth.module";
+import { HealthController } from "./health.controller";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AuthModule } from "./auth/auth.module";
     TriageModule,
     DocumentsModule,
     AiModule
-  ]
+  ],
+  controllers: [HealthController]
 })
 export class AppModule {}
