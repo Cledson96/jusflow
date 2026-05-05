@@ -77,6 +77,8 @@ jobs:
 
       - name: Deploy API on VPS
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -88,7 +90,6 @@ jobs:
             export DEPLOY_TARGET="api"
             export API_IMAGE_TAG="sha-${{ github.sha }}"
             export APP_ENV_FILE=".env.production"
-            export VPS_APP_DIR="${{ secrets.VPS_APP_DIR }}"
             cd "$VPS_APP_DIR"
             bash ./scripts/deploy.sh
             curl --fail --silent https://api.jurisflow.cledson.com.br/docs >/dev/null
