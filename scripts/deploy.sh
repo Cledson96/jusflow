@@ -27,6 +27,7 @@ export APP_ENV_FILE
 compose_cmd=(docker compose -f docker-compose.yml --env-file "$APP_ENV_FILE")
 
 echo "Deploying JurisFlow from $APP_DIR"
+echo "Branch: $DEPLOY_BRANCH"
 echo "Target: $DEPLOY_TARGET"
 echo "Env file: $APP_ENV_FILE"
 echo "Available compose services:"
