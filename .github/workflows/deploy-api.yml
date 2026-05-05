@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @jurisflow/api prisma:generate
+
       - name: Build API
         run: pnpm --filter @jurisflow/api build
 

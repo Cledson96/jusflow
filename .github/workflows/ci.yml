@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @jurisflow/api prisma:generate
+
       - name: Lint
         run: pnpm lint
 
@@ -44,6 +47,7 @@ jobs:
 
       - name: Build Web
         env:
-          NEXT_PUBLIC_API_URL: https://api.seudominio.com
+          NEXT_PUBLIC_API_URL: https://api.jurisflow.cledson.com.br
+          NEXT_PUBLIC_AUTH_MODE: authjs
           NEXT_PUBLIC_DEV_ORGANIZATION_ID: org_demo_jurisflow
         run: pnpm --filter @jurisflow/web build
