@@ -125,8 +125,6 @@ docker compose exec api pnpm db:seed
 Atualizacoes seguintes:
 
 ```bash
-GHCR_USERNAME=...
-GHCR_TOKEN=...
 APP_ENV_FILE=.env.production
 RUN_SEED=false ./scripts/deploy.sh
 ```
@@ -159,13 +157,17 @@ Workflows:
 Secrets necessarios no GitHub:
 
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- `GHCR_USERNAME`
-- `GHCR_TOKEN`
 - `VPS_HOST`
 - `VPS_PORT`
 - `VPS_USER`
 - `VPS_SSH_KEY`
 - `VPS_APP_DIR`
+
+Se a imagem do GHCR estiver privada, faca login uma vez direto na VPS:
+
+```bash
+docker login ghcr.io
+```
 
 ## Status
 
