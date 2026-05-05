@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "apps/web/**"
+      - ".github/workflows/deploy-web.yml"
       - "packages/shared/**"
       - "apps/web/Dockerfile"
       - "docker-compose.yml"

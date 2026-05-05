@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "apps/api/**"
+      - ".github/workflows/deploy-api.yml"
       - "packages/shared/**"
       - "apps/api/Dockerfile"
       - "docker-compose.yml"
