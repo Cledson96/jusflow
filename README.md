@@ -157,7 +157,6 @@ Workflows:
 Secrets necessarios no GitHub:
 
 - `VPS_HOST`
-- `VPS_PORT`
 - `VPS_USER`
 - `VPS_SSH_KEY`
 - `VPS_APP_DIR`
