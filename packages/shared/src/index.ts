@@ -28,6 +28,7 @@ export interface AiTriageSummary {
   whatsappMessage: string;
 }
 
+// Shared workflow touchpoint for coordinated web/api deployments.
 export const defaultPipeline = [
   { key: "NEW_CONTACT", name: "Novo contato", order: 1 },
   { key: "TRIAGE_PENDING", name: "Triagem pendente", order: 2 },
