@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MemberRole {
+  OWNER
+  LAWYER
+  ASSISTANT
+}
+
+enum CaseStatus {
+  NEW_CONTACT
+  TRIAGE_PENDING
+  WAITING_DOCUMENTS
+  LAWYER_REVIEW
+  CONSULTATION_SCHEDULED
+  PROPOSAL_SENT
+  CLIENT_CONTRACTED
+  LOST
+  CLOSED
+}
+
+enum DocumentStatus {
+  PENDING
+  RECEIVED
+  REJECTED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members            OrganizationMember[]
+  clients            Client[]
+  leads              Lead[]
+  cases              Case[]
+  legalAreas         LegalArea[]
+  caseTypes          CaseType[]
+  pipelineStages     PipelineStage[]
+  documentChecklists DocumentChecklist[]
+  aiRuns             AiRun[]
+  auditLogs          AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships OrganizationMember[]
+  assignedCases Case[] @relation("AssignedCases")
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           MemberRole
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  phone          String?
+  email          String?
+  cpf            String?
+  city           String?
+  state          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  cases        Case[]
+
+  @@index([organizationId])
+  @@map("clients")
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String?
+  origin         String
+  status         String   @default("OPEN")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id])
+  cases        Case[]
+
+  @@index([organizationId])
+  @@map("leads")
+}
+
+model LegalArea {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  caseTypes CaseType[]
+
+  @@unique([organizationId, name])
+  @@map("legal_areas")
+}
+
+model CaseType {
+  id             String   @id @default(cuid())
+  organizationId String
+  legalAreaId    String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  legalArea    LegalArea    @relation(fields: [legalAreaId], references: [id], onDelete: Cascade)
+  cases Case[]
+  triageQuestions TriageQuestion[]
+  documentChecklists DocumentChecklist[]
+
+  @@unique([organizationId, name])
+  @@map("case_types")
+}
+
+model PipelineStage {
+  id             String     @id @default(cuid())
+  organizationId String
+  key            CaseStatus
+  name           String
+  order          Int
+  createdAt      DateTime   @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cases        Case[]
+
+  @@unique([organizationId, key])
+  @@map("pipeline_stages")
+}
+
+model Case {
+  id             String     @id @default(cuid())
+  organizationId String
+  clientId       String
+  leadId         String?
+  caseTypeId     String
+  pipelineStageId String?
+  assignedUserId String?
+  title          String
+  status         CaseStatus @default(NEW_CONTACT)
+  summary        String?
+  triageToken    String     @unique @default(cuid())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  caseType     CaseType     @relation(fields: [caseTypeId], references: [id])
+  pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  assignedUser User? @relation("AssignedCases", fields: [assignedUserId], references: [id])
+  triageAnswers TriageAnswer[]
+  documents CaseDocument[]
+  aiRuns AiRun[]
+  whatsappMessages WhatsappMessage[]
+
+  @@index([organizationId, status])
+  @@map("cases")
+}
+
+model TriageQuestion {
+  id             String   @id @default(cuid())
+  organizationId String
+  caseTypeId     String
+  label          String
+  fieldKey       String
+  inputType      String   @default("text")
+  required       Boolean  @default(false)
+  order          Int
+
+  caseType CaseType @relation(fields: [caseTypeId], references: [id], onDelete: Cascade)
+  answers  TriageAnswer[]
+
+  @@unique([organizationId, caseTypeId, fieldKey])
+  @@map("triage_questions")
+}
+
+model TriageAnswer {
+  id          String   @id @default(cuid())
+  caseId      String
+  questionId  String
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  case     Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  question TriageQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, questionId])
+  @@map("triage_answers")
+}
+
+model DocumentChecklist {
+  id             String   @id @default(cuid())
+  organizationId String
+  caseTypeId     String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  caseType CaseType @relation(fields: [caseTypeId], references: [id], onDelete: Cascade)
+  items DocumentItem[]
+
+  @@unique([organizationId, caseTypeId, name])
+  @@map("document_checklists")
+}
+
+model DocumentItem {
+  id          String @id @default(cuid())
+  checklistId String
+  name        String
+  description String?
+  required    Boolean @default(true)
+  order       Int
+
+  checklist DocumentChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  documents CaseDocument[]
+
+  @@map("document_items")
+}
+
+model CaseDocument {
+  id             String         @id @default(cuid())
+  caseId          String
+  documentItemId  String
+  status          DocumentStatus @default(PENDING)
+  fileName        String?
+  storagePath     String?
+  contentType     String?
+  sizeBytes       Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  documentItem DocumentItem @relation(fields: [documentItemId], references: [id])
+
+  @@unique([caseId, documentItemId])
+  @@map("case_documents")
+}
+
+model AiRun {
+  id             String       @id @default(cuid())
+  organizationId String
+  caseId          String
+  promptVersion   String
+  output          Json
+  model           String
+  createdAt       DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, caseId])
+  @@map("ai_runs")
+}
+
+model WhatsappMessage {
+  id        String   @id @default(cuid())
+  caseId    String
+  body      String
+  copiedAt  DateTime?
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_messages")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, entityType])
+  @@map("audit_logs")
+}

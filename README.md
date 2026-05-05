@@ -1,18 +1,61 @@
 # JurisFlow
 
-Planejamento de produto para um SaaS juridico voltado a advogados autonomos e escritorios pequenos.
+Planejamento e inicio da construcao de um SaaS juridico voltado a advogados autonomos e escritorios pequenos.
 
 O foco inicial do JurisFlow e organizar o pre-atendimento trabalhista: transformar contatos vindos de WhatsApp, indicacoes ou formularios em casos estruturados com triagem, checklist documental, resumo por IA e proximos passos claros.
+
+## Aplicacao
+
+O MVP foi estruturado como monorepo:
+
+- `apps/web`: Next.js App Router, Tailwind CSS e componentes no estilo shadcn/ui.
+- `apps/api`: NestJS REST API, Prisma, PostgreSQL/Supabase e Swagger.
+- `packages/shared`: enums, tipos e defaults compartilhados.
 
 ## Documentacao
 
 - [Planejamento de Produto](docs/planejamento-produto-jurisflow.md)
 
+## Desenvolvimento local
+
+Instale as dependencias:
+
+```bash
+pnpm install
+```
+
+Copie as variaveis de ambiente:
+
+```bash
+cp .env.example .env
+```
+
+Gere o Prisma Client:
+
+```bash
+pnpm --filter @jurisflow/api prisma:generate
+```
+
+Rode os checks:
+
+```bash
+pnpm test
+pnpm lint
+pnpm build
+```
+
+Inicie os apps:
+
+```bash
+pnpm dev
+```
+
 ## Status
 
-Este repositorio esta na fase de planejamento. A proxima etapa recomendada e detalhar:
+O repositorio contem a base inicial do MVP:
 
-- validacao comercial;
-- PRD do MVP;
-- prototipo visual;
-- plano tecnico de implementacao.
+- schema Prisma multi-tenant;
+- seeds para trabalhista, pipeline, triagem e checklists;
+- API NestJS para organizacoes, clientes, leads, casos, triagem, documentos e IA;
+- UI inicial do painel operacional;
+- testes de dominio, IA e renderizacao do workspace.
