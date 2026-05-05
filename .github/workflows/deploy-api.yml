@@ -87,4 +87,4 @@ jobs:
             export APP_ENV_FILE=".env.production"
             cd "${{ secrets.VPS_APP_DIR }}"
             bash ./scripts/deploy.sh
-            curl --fail --silent https://api.seudominio.com/docs >/dev/null
+            curl --fail --silent https://api.jurisflow.cledson.com.br/docs >/dev/null

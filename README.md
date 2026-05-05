@@ -72,12 +72,11 @@ pnpm dev
 
 ## Deploy na VPS
 
-O repositorio inclui a base para deploy em uma VPS Ubuntu com Docker Compose, GHCR e GitHub Actions:
+O repositorio inclui a base para deploy em uma VPS Ubuntu com Docker Compose, GHCR e GitHub Actions. O proxy HTTPS fica no Nginx do host da VPS, no mesmo modelo do `lanchonete`.
 
 - [docker-compose.yml](C:/projetos/jusflow/docker-compose.yml)
 - [apps/api/Dockerfile](C:/projetos/jusflow/apps/api/Dockerfile)
 - [apps/web/Dockerfile](C:/projetos/jusflow/apps/web/Dockerfile)
-- [infra/nginx/nginx.conf](C:/projetos/jusflow/infra/nginx/nginx.conf)
 - [scripts/deploy.sh](C:/projetos/jusflow/scripts/deploy.sh)
 - [scripts/backup-postgres.sh](C:/projetos/jusflow/scripts/backup-postgres.sh)
 
@@ -91,26 +90,19 @@ cp .env.production.example .env.production
 
 Preencha no `.env.production`:
 
-- `DATABASE_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
-- `DIRECT_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
+- `DATABASE_URL=postgresql://jurisflow:...@host.docker.internal:5432/jurisflow`
+- `DIRECT_URL=postgresql://jurisflow:...@host.docker.internal:5432/jurisflow`
 - `API_IMAGE=ghcr.io/cledson96/jurisflow-api`
-- `API_IMAGE_TAG=main`
+- `API_IMAGE_TAG=latest`
 - `WEB_IMAGE=ghcr.io/cledson96/jurisflow-web`
-- `WEB_IMAGE_TAG=main`
-- `WEB_ORIGIN=https://app.seudominio.com`
-- `NEXT_PUBLIC_API_URL=https://api.seudominio.com`
+- `WEB_IMAGE_TAG=latest`
+- `WEB_ORIGIN=https://jurisflow.cledson.com.br`
+- `NEXT_PUBLIC_API_URL=https://api.jurisflow.cledson.com.br`
 - `AUTH_SECRET=...`
-- `AUTH_URL=https://app.seudominio.com`
+- `AUTH_URL=https://jurisflow.cledson.com.br`
 - `NEXT_PUBLIC_AUTH_MODE=authjs`
 - `SUPABASE_URL=...`
 - `SUPABASE_SERVICE_ROLE_KEY=...`
-
-Tambem copie os certificados SSL para:
-
-```bash
-/opt/jurisflow/infra/nginx/certs/fullchain.pem
-/opt/jurisflow/infra/nginx/certs/privkey.pem
-```
 
 Primeira subida manual:
 
@@ -120,6 +112,58 @@ docker compose --env-file .env.production pull
 docker compose --env-file .env.production up -d
 docker compose --env-file .env.production run --rm api pnpm db:migrate:deploy
 docker compose --env-file .env.production run --rm api pnpm db:seed
+```
+
+Nginx do host da VPS:
+
+- `jurisflow.cledson.com.br` -> `127.0.0.1:3002`
+- `api.jurisflow.cledson.com.br` -> `127.0.0.1:4002`
+
+Exemplo de `/etc/nginx/sites-available/jurisflow`:
+
+```nginx
+server {
+    server_name jurisflow.cledson.com.br;
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    listen 80;
+}
+
+server {
+    server_name api.jurisflow.cledson.com.br;
+
+    location / {
+        proxy_pass http://127.0.0.1:4002;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    listen 80;
+}
+```
+
+Depois:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/jurisflow /etc/nginx/sites-enabled/jurisflow
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot --nginx -d jurisflow.cledson.com.br -d api.jurisflow.cledson.com.br
 ```
 
 Atualizacoes seguintes:

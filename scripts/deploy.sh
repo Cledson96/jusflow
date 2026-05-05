@@ -28,16 +28,16 @@ compose_cmd=(docker compose --env-file "$APP_ENV_FILE")
 
 case "$DEPLOY_TARGET" in
   web)
-    "${compose_cmd[@]}" pull web nginx
-    "${compose_cmd[@]}" up -d --remove-orphans web nginx
+    "${compose_cmd[@]}" pull web
+    "${compose_cmd[@]}" up -d --remove-orphans web
     ;;
   api)
-    "${compose_cmd[@]}" pull api nginx
+    "${compose_cmd[@]}" pull api
     "${compose_cmd[@]}" run --rm api pnpm db:migrate:deploy
-    "${compose_cmd[@]}" up -d --remove-orphans api nginx
+    "${compose_cmd[@]}" up -d --remove-orphans api
     ;;
   all)
-    "${compose_cmd[@]}" pull api web nginx
+    "${compose_cmd[@]}" pull api web
     "${compose_cmd[@]}" run --rm api pnpm db:migrate:deploy
     "${compose_cmd[@]}" up -d --remove-orphans
     ;;
