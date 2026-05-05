@@ -15,13 +15,11 @@ describe("apiFetch", () => {
 
     await apiFetch("/cases");
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:4000/api/cases",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          "x-organization-id": "org_demo_jurisflow"
-        })
-      })
-    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://localhost:4000/api/cases");
+
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get("x-organization-id")).toBe("org_demo_jurisflow");
+    expect(headers.get("x-user-id")).toBe("dev-user");
   });
 });

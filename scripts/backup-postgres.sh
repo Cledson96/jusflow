@@ -12,11 +12,7 @@ set -a
 source "$APP_DIR/.env"
 set +a
 
-docker compose exec -T db pg_dump \
-  -U "$POSTGRES_USER" \
-  -d "$POSTGRES_DB" \
-  --format=custom \
-  > "$BACKUP_DIR/jurisflow-$TIMESTAMP.dump"
+pg_dump "$DATABASE_URL" --format=custom > "$BACKUP_DIR/jurisflow-$TIMESTAMP.dump"
 
 find "$BACKUP_DIR" -type f -name '*.dump' -mtime +7 -delete
 

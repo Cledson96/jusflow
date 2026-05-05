@@ -72,7 +72,7 @@ pnpm dev
 
 ## Deploy na VPS
 
-O repositorio inclui a base para deploy em uma VPS Ubuntu com Docker Compose:
+O repositorio inclui a base para deploy em uma VPS Ubuntu com Docker Compose, GHCR e GitHub Actions:
 
 - [docker-compose.yml](C:/projetos/jusflow/docker-compose.yml)
 - [apps/api/Dockerfile](C:/projetos/jusflow/apps/api/Dockerfile)
@@ -91,11 +91,12 @@ cp .env.example .env
 
 Preencha no `.env`:
 
-- `DATABASE_URL=postgresql://jurisflow:...@db:5432/jurisflow`
-- `DIRECT_URL=postgresql://jurisflow:...@db:5432/jurisflow`
-- `POSTGRES_DB=jurisflow`
-- `POSTGRES_USER=jurisflow`
-- `POSTGRES_PASSWORD=...`
+- `DATABASE_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
+- `DIRECT_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
+- `API_IMAGE=ghcr.io/cledson96/jurisflow-api`
+- `API_IMAGE_TAG=main`
+- `WEB_IMAGE=ghcr.io/cledson96/jurisflow-web`
+- `WEB_IMAGE_TAG=main`
 - `WEB_ORIGIN=https://app.seudominio.com`
 - `NEXT_PUBLIC_API_URL=https://api.seudominio.com`
 - `CLERK_SECRET_KEY=...`
@@ -104,10 +105,18 @@ Preencha no `.env`:
 - `SUPABASE_URL=...`
 - `SUPABASE_SERVICE_ROLE_KEY=...`
 
-Primeira subida:
+Tambem copie os certificados SSL para:
 
 ```bash
-docker compose build
+/opt/jurisflow/infra/nginx/certs/fullchain.pem
+/opt/jurisflow/infra/nginx/certs/privkey.pem
+```
+
+Primeira subida manual:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+docker compose pull
 docker compose up -d
 docker compose exec api pnpm db:migrate:deploy
 docker compose exec api pnpm db:seed
@@ -116,6 +125,9 @@ docker compose exec api pnpm db:seed
 Atualizacoes seguintes:
 
 ```bash
+GHCR_USERNAME=...
+GHCR_TOKEN=...
+VPS_PORT=22
 RUN_SEED=false ./scripts/deploy.sh
 ```
 
@@ -130,6 +142,29 @@ Backup manual:
 ```bash
 ./scripts/backup-postgres.sh
 ```
+
+## Branches e CI/CD
+
+Fluxo esperado:
+
+- `development`: integracao continua
+- `main`: producao
+
+Workflows:
+
+- [ci.yml](C:/projetos/jusflow/.github/workflows/ci.yml): roda `lint`, `test` e builds de validacao
+- [publish.yml](C:/projetos/jusflow/.github/workflows/publish.yml): publica imagens no GHCR para `development` e `main`
+- [deploy-production.yml](C:/projetos/jusflow/.github/workflows/deploy-production.yml): apos publish bem-sucedido da `main`, conecta via SSH e faz o deploy na VPS
+
+Secrets necessarios no GitHub:
+
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `GHCR_USERNAME`
+- `GHCR_TOKEN`
+- `VPS_HOST`
+- `VPS_PORT`
+- `VPS_USER`
+- `VPS_SSH_KEY`
 
 ## Status
 

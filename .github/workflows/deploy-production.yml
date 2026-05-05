@@ -1,0 +1,34 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows:
+      - Publish Images
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && secrets.VPS_HOST != '' && secrets.VPS_USER != '' && secrets.VPS_SSH_KEY != '' && secrets.GHCR_USERNAME != '' && secrets.GHCR_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          envs: GHCR_USERNAME,GHCR_TOKEN,API_IMAGE_TAG,WEB_IMAGE_TAG,DEPLOY_BRANCH
+          script: |
+            export GHCR_USERNAME="${{ secrets.GHCR_USERNAME }}"
+            export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+            export DEPLOY_BRANCH="main"
+            export API_IMAGE_TAG="sha-${{ github.event.workflow_run.head_sha }}"
+            export WEB_IMAGE_TAG="sha-${{ github.event.workflow_run.head_sha }}"
+            cd /opt/jurisflow
+            bash ./scripts/deploy.sh
+            curl --fail --silent https://api.seudominio.com/docs >/dev/null
