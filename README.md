@@ -127,7 +127,7 @@ Atualizacoes seguintes:
 ```bash
 GHCR_USERNAME=...
 GHCR_TOKEN=...
-VPS_PORT=22
+APP_ENV_FILE=.env.production
 RUN_SEED=false ./scripts/deploy.sh
 ```
 
@@ -153,8 +153,8 @@ Fluxo esperado:
 Workflows:
 
 - [ci.yml](C:/projetos/jusflow/.github/workflows/ci.yml): roda `lint`, `test` e builds de validacao
-- [publish.yml](C:/projetos/jusflow/.github/workflows/publish.yml): publica imagens no GHCR para `development` e `main`
-- [deploy-production.yml](C:/projetos/jusflow/.github/workflows/deploy-production.yml): apos publish bem-sucedido da `main`, conecta via SSH e faz o deploy na VPS
+- [deploy-web.yml](C:/projetos/jusflow/.github/workflows/deploy-web.yml): publica e faz deploy do frontend quando houver mudancas relevantes no `web`
+- [deploy-api.yml](C:/projetos/jusflow/.github/workflows/deploy-api.yml): publica e faz deploy da API quando houver mudancas relevantes no `api`
 
 Secrets necessarios no GitHub:
 
@@ -165,6 +165,7 @@ Secrets necessarios no GitHub:
 - `VPS_PORT`
 - `VPS_USER`
 - `VPS_SSH_KEY`
+- `VPS_APP_DIR`
 
 ## Status
 

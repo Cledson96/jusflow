@@ -2,13 +2,15 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/jurisflow}"
+APP_ENV_FILE="${APP_ENV_FILE:-.env.production}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+DEPLOY_TARGET="${DEPLOY_TARGET:-all}"
 API_IMAGE_TAG="${API_IMAGE_TAG:-main}"
 WEB_IMAGE_TAG="${WEB_IMAGE_TAG:-main}"
 RUN_SEED="${RUN_SEED:-false}"
 
-if [[ ! -f "$APP_DIR/.env" ]]; then
-  echo ".env not found at $APP_DIR/.env"
+if [[ ! -f "$APP_DIR/$APP_ENV_FILE" ]]; then
+  echo "Env file not found at $APP_DIR/$APP_ENV_FILE"
   exit 1
 fi
 
@@ -27,13 +29,33 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
 export API_IMAGE_TAG
 export WEB_IMAGE_TAG
+export APP_ENV_FILE
 
-docker compose pull api web nginx
-docker compose up -d --remove-orphans
-docker compose exec api pnpm db:migrate:deploy
+compose_cmd=(docker compose --env-file "$APP_ENV_FILE")
+
+case "$DEPLOY_TARGET" in
+  web)
+    "${compose_cmd[@]}" pull web nginx
+    "${compose_cmd[@]}" up -d --remove-orphans web nginx
+    ;;
+  api)
+    "${compose_cmd[@]}" pull api nginx
+    "${compose_cmd[@]}" run --rm api pnpm db:migrate:deploy
+    "${compose_cmd[@]}" up -d --remove-orphans api nginx
+    ;;
+  all)
+    "${compose_cmd[@]}" pull api web nginx
+    "${compose_cmd[@]}" run --rm api pnpm db:migrate:deploy
+    "${compose_cmd[@]}" up -d --remove-orphans
+    ;;
+  *)
+    echo "Unsupported DEPLOY_TARGET: $DEPLOY_TARGET"
+    exit 1
+    ;;
+esac
 
 if [[ "$RUN_SEED" == "true" ]]; then
-  docker compose exec api pnpm db:seed
+  "${compose_cmd[@]}" run --rm api pnpm db:seed
 fi
 
-echo "JurisFlow deployed successfully with tags api=$API_IMAGE_TAG web=$WEB_IMAGE_TAG"
+echo "JurisFlow deployed successfully target=$DEPLOY_TARGET api=$API_IMAGE_TAG web=$WEB_IMAGE_TAG"

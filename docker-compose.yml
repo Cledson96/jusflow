@@ -4,7 +4,7 @@ services:
     container_name: jurisflow-api
     restart: unless-stopped
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env.production}
     pull_policy: always
     expose:
       - "4000"
@@ -14,7 +14,7 @@ services:
     container_name: jurisflow-web
     restart: unless-stopped
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env.production}
     depends_on:
       api:
         condition: service_started
