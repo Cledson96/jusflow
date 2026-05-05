@@ -49,6 +49,13 @@ Gere o Prisma Client:
 pnpm --filter @jurisflow/api prisma:generate
 ```
 
+Crie as tabelas e o bucket privado no banco configurado:
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+```
+
 Rode os checks:
 
 ```bash
