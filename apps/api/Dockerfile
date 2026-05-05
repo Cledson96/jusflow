@@ -16,6 +16,7 @@ WORKDIR /app
 COPY . .
 RUN pnpm --filter @jurisflow/api prisma:generate
 RUN pnpm --filter @jurisflow/api build
+RUN test -f apps/api/dist/apps/api/src/main.js
 
 FROM base AS runner
 WORKDIR /app
@@ -30,4 +31,4 @@ COPY --from=build /app/packages/shared/src packages/shared/src
 COPY --from=build /app/node_modules node_modules
 WORKDIR /app/apps/api
 EXPOSE 4000
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/apps/api/src/main.js"]
