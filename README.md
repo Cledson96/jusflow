@@ -70,6 +70,67 @@ Inicie os apps:
 pnpm dev
 ```
 
+## Deploy na VPS
+
+O repositorio inclui a base para deploy em uma VPS Ubuntu com Docker Compose:
+
+- [docker-compose.yml](C:/projetos/jusflow/docker-compose.yml)
+- [apps/api/Dockerfile](C:/projetos/jusflow/apps/api/Dockerfile)
+- [apps/web/Dockerfile](C:/projetos/jusflow/apps/web/Dockerfile)
+- [infra/nginx/nginx.conf](C:/projetos/jusflow/infra/nginx/nginx.conf)
+- [scripts/deploy.sh](C:/projetos/jusflow/scripts/deploy.sh)
+- [scripts/backup-postgres.sh](C:/projetos/jusflow/scripts/backup-postgres.sh)
+
+Fluxo recomendado na VPS:
+
+```bash
+mkdir -p /opt/jurisflow/backups
+cd /opt/jurisflow
+cp .env.example .env
+```
+
+Preencha no `.env`:
+
+- `DATABASE_URL=postgresql://jurisflow:...@db:5432/jurisflow`
+- `DIRECT_URL=postgresql://jurisflow:...@db:5432/jurisflow`
+- `POSTGRES_DB=jurisflow`
+- `POSTGRES_USER=jurisflow`
+- `POSTGRES_PASSWORD=...`
+- `WEB_ORIGIN=https://app.seudominio.com`
+- `NEXT_PUBLIC_API_URL=https://api.seudominio.com`
+- `CLERK_SECRET_KEY=...`
+- `CLERK_JWT_ISSUER=...`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...`
+- `SUPABASE_URL=...`
+- `SUPABASE_SERVICE_ROLE_KEY=...`
+
+Primeira subida:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose exec api pnpm db:migrate:deploy
+docker compose exec api pnpm db:seed
+```
+
+Atualizacoes seguintes:
+
+```bash
+RUN_SEED=false ./scripts/deploy.sh
+```
+
+Bootstrap inicial com seed:
+
+```bash
+RUN_SEED=true ./scripts/deploy.sh
+```
+
+Backup manual:
+
+```bash
+./scripts/backup-postgres.sh
+```
+
 ## Status
 
 O repositorio contem a base inicial do MVP:

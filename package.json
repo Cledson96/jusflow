@@ -9,6 +9,7 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:migrate": "pnpm --filter @jurisflow/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @jurisflow/api db:migrate:deploy",
     "db:seed": "pnpm --filter @jurisflow/api db:seed"
   },
   "devDependencies": {
