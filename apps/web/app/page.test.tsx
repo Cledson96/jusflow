@@ -9,6 +9,6 @@ describe("Home", () => {
 
     expect(screen.getByText("JurisFlow")).toBeInTheDocument();
     expect(screen.getByText("Kanban de atendimento")).toBeInTheDocument();
-    expect(screen.getByText("Copiar mensagem WhatsApp")).toBeInTheDocument();
+    expect(screen.getByText("Criar lead e caso")).toBeInTheDocument();
   });
 });
