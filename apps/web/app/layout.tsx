@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { AppSessionProvider } from "@/components/providers/session-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,19 +8,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const content = (
-    <html lang="pt-BR">
-      <body>{children}</body>
-    </html>
-  );
-
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
-    return content;
-  }
-
   return (
-    <ClerkProvider>
-      {content}
-    </ClerkProvider>
+    <html lang="pt-BR">
+      <body>
+        <AppSessionProvider>{children}</AppSessionProvider>
+      </body>
+    </html>
   );
 }

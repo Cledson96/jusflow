@@ -1,6 +1,6 @@
 const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000");
 const DEV_ORG_ID = process.env.NEXT_PUBLIC_DEV_ORGANIZATION_ID ?? "org_demo_jurisflow";
-const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_MODE === "authjs";
 
 function normalizeApiUrl(value: string) {
   const trimmed = value.replace(/\/$/, "");
@@ -36,7 +36,7 @@ export async function apiFetch<T>(
     headers.set("x-organization-id", context.organizationId);
   }
 
-  if (!CLERK_ENABLED) {
+  if (!AUTH_ENABLED) {
     headers.set("x-user-id", "dev-user");
     headers.set("x-user-email", "demo@jurisflow.local");
     headers.set("x-organization-id", context?.organizationId ?? DEV_ORG_ID);

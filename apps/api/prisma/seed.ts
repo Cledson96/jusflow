@@ -1,9 +1,12 @@
 import { PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 import { defaultPipeline, laborCaseTypes } from "@jurisflow/shared";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const demoPasswordHash = await hash("demo123456", 10);
+
   const organization = await prisma.organization.upsert({
     where: { slug: "demo-jurisflow" },
     update: {},
@@ -11,12 +14,13 @@ async function main() {
   });
 
   const user = await prisma.user.upsert({
-    where: { clerkId: "dev-user" },
-    update: {},
+    where: { authUserId: "dev-user" },
+    update: { passwordHash: demoPasswordHash },
     create: {
-      clerkId: "dev-user",
+      authUserId: "dev-user",
       email: "demo@jurisflow.local",
-      name: "Advogado Demo"
+      name: "Advogado Demo",
+      passwordHash: demoPasswordHash
     }
   });
 

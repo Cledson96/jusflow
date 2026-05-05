@@ -86,10 +86,10 @@ Fluxo recomendado na VPS:
 ```bash
 mkdir -p /opt/jurisflow/backups
 cd /opt/jurisflow
-cp .env.example .env
+cp .env.production.example .env.production
 ```
 
-Preencha no `.env`:
+Preencha no `.env.production`:
 
 - `DATABASE_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
 - `DIRECT_URL=postgresql://jurisflow:...@db.seudominio.com:5432/jurisflow`
@@ -99,9 +99,9 @@ Preencha no `.env`:
 - `WEB_IMAGE_TAG=main`
 - `WEB_ORIGIN=https://app.seudominio.com`
 - `NEXT_PUBLIC_API_URL=https://api.seudominio.com`
-- `CLERK_SECRET_KEY=...`
-- `CLERK_JWT_ISSUER=...`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...`
+- `AUTH_SECRET=...`
+- `AUTH_URL=https://app.seudominio.com`
+- `NEXT_PUBLIC_AUTH_MODE=authjs`
 - `SUPABASE_URL=...`
 - `SUPABASE_SERVICE_ROLE_KEY=...`
 
@@ -115,11 +115,11 @@ Tambem copie os certificados SSL para:
 Primeira subida manual:
 
 ```bash
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-docker compose pull
-docker compose up -d
-docker compose exec api pnpm db:migrate:deploy
-docker compose exec api pnpm db:seed
+docker login ghcr.io
+docker compose --env-file .env.production pull
+docker compose --env-file .env.production up -d
+docker compose --env-file .env.production run --rm api pnpm db:migrate:deploy
+docker compose --env-file .env.production run --rm api pnpm db:seed
 ```
 
 Atualizacoes seguintes:
@@ -156,7 +156,6 @@ Workflows:
 
 Secrets necessarios no GitHub:
 
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `VPS_HOST`
 - `VPS_PORT`
 - `VPS_USER`
@@ -174,6 +173,7 @@ docker login ghcr.io
 O repositorio contem a base inicial do MVP:
 
 - schema Prisma multi-tenant;
+- autenticacao com Auth.js v5 e login por email/senha;
 - seeds para trabalhista, pipeline, triagem e checklists;
 - API NestJS para organizacoes, clientes, leads, casos, triagem, documentos e IA;
 - UI inicial do painel operacional;

@@ -1,20 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  UserButton,
-  useAuth,
-  useUser
-} from "@clerk/nextjs";
+import { signIn, signOut, useSession } from "next-auth/react";
 import {
   ArrowRight,
   BriefcaseBusiness,
   ClipboardList,
   FileCheck2,
   Loader2,
+  LogOut,
   Sparkles
 } from "lucide-react";
 import { defaultPipeline } from "@jurisflow/shared";
@@ -46,14 +40,6 @@ type CaseDocument = {
   fileName?: string | null;
   signedUrl?: string | null;
   documentItem?: { name: string };
-};
-
-type TriageQuestion = {
-  id: string;
-  fieldKey: string;
-  label: string;
-  required: boolean;
-  value: string;
 };
 
 type AiRun = {
@@ -109,8 +95,9 @@ type WorkspaceCoreProps = {
   organizationBadge?: React.ReactNode;
 };
 
-const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_MODE === "authjs";
 const DEV_ORG_ID = process.env.NEXT_PUBLIC_DEV_ORGANIZATION_ID ?? "org_demo_jurisflow";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 
 const fallbackCases: JurisCase[] = [
   {
@@ -140,17 +127,6 @@ const fallbackCases: JurisCase[] = [
         id: "msg-1",
         body: "Ola, Joao Silva. Para avancarmos na analise inicial, preciso que envie Contrato PJ e Notas fiscais."
       }
-    ]
-  },
-  {
-    id: "fallback-2",
-    title: "Verbas rescisorias",
-    status: "LAWYER_REVIEW",
-    client: { id: "client-2", name: "Marina Costa" },
-    caseType: { id: "type-2", name: "Verbas trabalhistas" },
-    documents: [
-      { id: "doc-4", status: "RECEIVED", documentItem: { name: "Carteira de trabalho" } },
-      { id: "doc-5", status: "PENDING", documentItem: { name: "Holerites" } }
     ]
   }
 ];
@@ -391,8 +367,7 @@ function WorkspaceCore({ allowDemoFallback, requestContext, identitySlot, organi
   }
 
   async function copyWhatsappMessage() {
-    const message = getWhatsappMessage(caseDetail);
-    await navigator.clipboard?.writeText(message);
+    await navigator.clipboard?.writeText(getWhatsappMessage(caseDetail));
   }
 
   const selectedSummary = caseDetail?.aiRuns?.[0]?.output;
@@ -442,7 +417,7 @@ function WorkspaceCore({ allowDemoFallback, requestContext, identitySlot, organi
         <div className="space-y-8 px-5 py-6 lg:px-8">
           {apiState === "unavailable" && (
             <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              A aplicacao nao conseguiu autenticar ou acessar a API. Verifique Clerk, organizacao e variaveis de ambiente.
+              A aplicacao nao conseguiu autenticar ou acessar a API. Verifique Auth.js, o usuario e as variaveis de ambiente.
             </section>
           )}
 
@@ -679,31 +654,33 @@ function LocalWorkspace() {
   );
 }
 
-function ClerkWorkspace() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { user } = useUser();
+function AuthWorkspace() {
+  const { data: session, status } = useSession();
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [viewerLoading, setViewerLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState("");
   const [organizationName, setOrganizationName] = useState("");
-  const [organizationDraft, setOrganizationDraft] = useState("");
-  const [creatingOrganization, setCreatingOrganization] = useState(false);
-
-  const primaryEmail = user?.primaryEmailAddress?.emailAddress ?? "";
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    organizationName: ""
+  });
+  const [loginError, setLoginError] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
   const requestContext = useCallback(async () => {
-    const accessToken = await getToken();
     return {
-      accessToken,
-      userEmail: primaryEmail,
+      accessToken: session?.accessToken ?? null,
+      userEmail: session?.user?.email ?? null,
       organizationId
     };
-  }, [getToken, organizationId, primaryEmail]);
+  }, [organizationId, session?.accessToken, session?.user?.email]);
 
   const loadViewer = useCallback(async () => {
-    if (!isLoaded) return;
-
-    if (!isSignedIn) {
+    if (status !== "authenticated") {
       setViewer(null);
       setViewerLoading(false);
       return;
@@ -711,13 +688,12 @@ function ClerkWorkspace() {
 
     setViewerLoading(true);
     try {
-      const accessToken = await getToken();
       const loaded = await apiFetch<Viewer>(
         "/me",
         undefined,
         {
-          accessToken,
-          userEmail: primaryEmail
+          accessToken: session?.accessToken,
+          userEmail: session?.user?.email
         }
       );
       setViewer(loaded);
@@ -729,7 +705,7 @@ function ClerkWorkspace() {
     } finally {
       setViewerLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn, primaryEmail]);
+  }, [session?.accessToken, session?.user?.email, status]);
 
   useEffect(() => {
     void loadViewer();
@@ -742,31 +718,57 @@ function ClerkWorkspace() {
     }
   }, [organizationId, viewer]);
 
-  async function createOrganization(event: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!organizationDraft.trim()) return;
-    setCreatingOrganization(true);
+    setAuthBusy(true);
+    setLoginError("");
     try {
-      const accessToken = await getToken();
-      await apiFetch(
-        "/organizations",
-        {
-          method: "POST",
-          body: JSON.stringify({ name: organizationDraft.trim() })
-        },
-        {
-          accessToken,
-          userEmail: primaryEmail
-        }
-      );
-      setOrganizationDraft("");
-      await loadViewer();
+      const result = await signIn("credentials", {
+        email: loginForm.email,
+        password: loginForm.password,
+        redirect: false
+      });
+
+      if (result?.error) {
+        setLoginError("Nao foi possivel entrar com esse email e senha.");
+      }
     } finally {
-      setCreatingOrganization(false);
+      setAuthBusy(false);
     }
   }
 
-  if (!isLoaded || viewerLoading) {
+  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setRegisterError("");
+    try {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(registerForm)
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        setRegisterError(message || "Nao foi possivel criar sua conta.");
+        return;
+      }
+
+      const loginResult = await signIn("credentials", {
+        email: registerForm.email,
+        password: registerForm.password,
+        redirect: false
+      });
+
+      if (loginResult?.error) {
+        setRegisterError("Conta criada, mas o login automatico falhou.");
+      }
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  if (status === "loading" || viewerLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5]">
         <div className="flex items-center gap-3 rounded-lg border border-border bg-white px-5 py-4 text-sm text-muted-foreground">
@@ -777,21 +779,72 @@ function ClerkWorkspace() {
     );
   }
 
-  if (!isSignedIn) {
+  if (status !== "authenticated") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5] px-4">
-        <section className="w-full max-w-md rounded-lg border border-border bg-white p-6">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">JurisFlow</p>
-          <h1 className="mt-2 text-2xl font-semibold">Entre para acessar o painel</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            O deploy de producao usa Clerk para autenticar a equipe do escritorio antes de liberar os casos.
-          </p>
-          <div className="mt-6">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button className="w-full">Entrar com Clerk</Button>
-              </SignInButton>
-            </SignedOut>
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5] px-4 py-10">
+        <section className="grid w-full max-w-5xl gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border border-border bg-white p-6">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">JurisFlow</p>
+            <h1 className="mt-2 text-2xl font-semibold">Entrar no escritorio</h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Use o email e a senha do seu usuario para acessar o painel juridico.
+            </p>
+            <form className="mt-6 space-y-3" onSubmit={(event) => void handleLogin(event)}>
+              <Input
+                placeholder="Email"
+                type="email"
+                value={loginForm.email}
+                onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+              />
+              <Input
+                placeholder="Senha"
+                type="password"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+              />
+              {loginError ? <p className="text-sm text-red-600">{loginError}</p> : null}
+              <Button className="w-full" disabled={authBusy}>
+                {authBusy ? "Entrando..." : "Entrar"}
+              </Button>
+            </form>
+          </div>
+
+          <div className="rounded-lg border border-border bg-white p-6">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Primeiro acesso</p>
+            <h2 className="mt-2 text-2xl font-semibold">Criar conta e escritorio</h2>
+            <p className="mt-3 text-sm text-muted-foreground">
+              O primeiro usuario ja entra como dono do escritorio e recebe o pipeline inicial do JurisFlow.
+            </p>
+            <form className="mt-6 space-y-3" onSubmit={(event) => void handleRegister(event)}>
+              <Input
+                placeholder="Seu nome"
+                value={registerForm.name}
+                onChange={(event) => setRegisterForm((current) => ({ ...current, name: event.target.value }))}
+              />
+              <Input
+                placeholder="Email"
+                type="email"
+                value={registerForm.email}
+                onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
+              />
+              <Input
+                placeholder="Senha"
+                type="password"
+                value={registerForm.password}
+                onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
+              />
+              <Input
+                placeholder="Nome do escritorio"
+                value={registerForm.organizationName}
+                onChange={(event) =>
+                  setRegisterForm((current) => ({ ...current, organizationName: event.target.value }))
+                }
+              />
+              {registerError ? <p className="text-sm text-red-600">{registerError}</p> : null}
+              <Button className="w-full" disabled={authBusy}>
+                {authBusy ? "Criando..." : "Criar conta"}
+              </Button>
+            </form>
           </div>
         </section>
       </main>
@@ -800,24 +853,10 @@ function ClerkWorkspace() {
 
   if (!viewer?.memberships.length) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5] px-4">
-        <section className="w-full max-w-md rounded-lg border border-border bg-white p-6">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Primeiro acesso</p>
-          <h1 className="mt-2 text-2xl font-semibold">Crie seu escritorio</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Precisamos vincular sua conta a uma organizacao interna do JurisFlow antes de carregar os casos.
-          </p>
-          <form className="mt-6 space-y-3" onSubmit={(event) => void createOrganization(event)}>
-            <Input
-              placeholder="Nome do escritorio"
-              value={organizationDraft}
-              onChange={(event) => setOrganizationDraft(event.target.value)}
-            />
-            <Button className="w-full" disabled={creatingOrganization}>
-              {creatingOrganization ? "Criando..." : "Criar escritorio"}
-            </Button>
-          </form>
-        </section>
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5]">
+        <div className="rounded-lg border border-border bg-white px-6 py-5 text-sm text-muted-foreground">
+          Este usuario ainda nao pertence a nenhum escritorio.
+        </div>
       </main>
     );
   }
@@ -851,17 +890,18 @@ function ClerkWorkspace() {
         </select>
       }
       identitySlot={
-        <SignedIn>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground md:inline">{organizationName}</span>
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </SignedIn>
+        <div className="flex items-center gap-2">
+          <span className="hidden text-sm text-muted-foreground md:inline">{organizationName}</span>
+          <Button type="button" variant="secondary" className="h-9 px-3" onClick={() => void signOut({ redirectTo: "/" })}>
+            <LogOut size={16} />
+            Sair
+          </Button>
+        </div>
       }
     />
   );
 }
 
 export function JurisflowWorkspace() {
-  return CLERK_ENABLED ? <ClerkWorkspace /> : <LocalWorkspace />;
+  return AUTH_ENABLED ? <AuthWorkspace /> : <LocalWorkspace />;
 }

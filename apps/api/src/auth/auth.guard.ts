@@ -4,11 +4,10 @@ import {
   Injectable,
   UnauthorizedException
 } from "@nestjs/common";
-import { verifyToken } from "@clerk/backend";
+import { jwtVerify } from "jose";
 import { PrismaService } from "../prisma/prisma.service";
 
-type ClerkJwtPayload = {
-  iss?: string;
+type AuthTokenPayload = {
   sub?: string;
   email?: string;
 };
@@ -19,12 +18,12 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const { clerkId, email } = await this.resolveIdentity(request);
+    const { authUserId, email } = await this.resolveIdentity(request);
 
     const user = await this.prisma.user.upsert({
-      where: { clerkId },
+      where: { authUserId },
       update: { email },
-      create: { clerkId, email, name: email.split("@")[0] },
+      create: { authUserId, email, name: email.split("@")[0] },
       include: { memberships: true }
     });
 
@@ -39,51 +38,43 @@ export class AuthGuard implements CanActivate {
 
   private async resolveIdentity(
     request: { headers: Record<string, string | string[] | undefined> }
-  ): Promise<{ clerkId: string; email: string }> {
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    const issuer = process.env.CLERK_JWT_ISSUER;
+  ): Promise<{ authUserId: string; email: string }> {
+    const secret = process.env.AUTH_SECRET;
 
-    if (!secretKey || !issuer) {
+    if (!secret) {
       return {
-        clerkId: request.headers["x-user-id"]?.toString() ?? "dev-user",
+        authUserId: request.headers["x-user-id"]?.toString() ?? "dev-user",
         email: request.headers["x-user-email"]?.toString() ?? "demo@jurisflow.local"
       };
     }
 
     const authorization = request.headers.authorization?.toString();
     if (!authorization?.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Missing Clerk bearer token.");
+      throw new UnauthorizedException("Missing auth bearer token.");
     }
 
     const token = authorization.slice("Bearer ".length).trim();
     if (!token) {
-      throw new UnauthorizedException("Missing Clerk bearer token.");
+      throw new UnauthorizedException("Missing auth bearer token.");
     }
 
     try {
-      const verified = await verifyToken(token, { secretKey });
-      if (!verified.data) {
-        throw new UnauthorizedException("Invalid Clerk token.");
+      const verified = await jwtVerify(token, new TextEncoder().encode(secret), {
+        issuer: "jurisflow-web",
+        audience: "jurisflow-api"
+      });
+      const payload = verified.payload as AuthTokenPayload;
+
+      if (!payload.sub) {
+        throw new UnauthorizedException("Invalid auth token subject.");
       }
 
-      const payload = verified.data as ClerkJwtPayload;
-      if (payload.iss !== issuer) {
-        throw new UnauthorizedException("Invalid Clerk token issuer.");
-      }
-
-      const clerkId = payload.sub;
-
-      if (!clerkId) {
-        throw new UnauthorizedException("Invalid Clerk token subject.");
-      }
-
-      const email =
-        request.headers["x-user-email"]?.toString() ??
-        (typeof payload.email === "string" ? payload.email : `${clerkId}@clerk.local`);
-
-      return { clerkId, email };
+      return {
+        authUserId: payload.sub,
+        email: typeof payload.email === "string" ? payload.email : `${payload.sub}@jurisflow.local`
+      };
     } catch {
-      throw new UnauthorizedException("Invalid Clerk token.");
+      throw new UnauthorizedException("Invalid auth token.");
     }
   }
 }

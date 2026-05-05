@@ -9,12 +9,14 @@ import { TriageModule } from "./triage/triage.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { AiModule } from "./ai/ai.module";
 import { CommonModule } from "./common/common.module";
+import { AuthModule } from "./auth/auth.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     CommonModule,
+    AuthModule,
     OrganizationsModule,
     ClientsModule,
     LeadsModule,

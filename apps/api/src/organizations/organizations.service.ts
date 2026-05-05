@@ -9,7 +9,11 @@ export class OrganizationsService {
   me(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        authUserId: true,
+        email: true,
+        name: true,
         memberships: {
           include: {
             organization: true
