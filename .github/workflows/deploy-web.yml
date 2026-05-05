@@ -86,11 +86,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
-          envs: DEPLOY_BRANCH,DEPLOY_TARGET,WEB_IMAGE_TAG,APP_ENV_FILE
+          envs: DEPLOY_BRANCH,DEPLOY_TARGET,WEB_IMAGE_TAG,APP_ENV_FILE,VPS_APP_DIR
           script: |
             export DEPLOY_BRANCH="main"
             export DEPLOY_TARGET="web"
             export WEB_IMAGE_TAG="sha-${{ github.sha }}"
             export APP_ENV_FILE=".env.production"
-            cd "${{ secrets.VPS_APP_DIR }}"
+            export VPS_APP_DIR="${{ secrets.VPS_APP_DIR }}"
+            cd "$VPS_APP_DIR"
             bash ./scripts/deploy.sh
