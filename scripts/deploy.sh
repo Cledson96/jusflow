@@ -24,7 +24,13 @@ export API_IMAGE_TAG
 export WEB_IMAGE_TAG
 export APP_ENV_FILE
 
-compose_cmd=(docker compose --env-file "$APP_ENV_FILE")
+compose_cmd=(docker compose -f docker-compose.yml --env-file "$APP_ENV_FILE")
+
+echo "Deploying JurisFlow from $APP_DIR"
+echo "Target: $DEPLOY_TARGET"
+echo "Env file: $APP_ENV_FILE"
+echo "Available compose services:"
+"${compose_cmd[@]}" config --services
 
 case "$DEPLOY_TARGET" in
   web)
