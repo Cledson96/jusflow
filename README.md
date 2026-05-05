@@ -16,6 +16,19 @@ O MVP foi estruturado como monorepo:
 
 - [Planejamento de Produto](docs/planejamento-produto-jurisflow.md)
 
+## Supabase
+
+Projeto criado para o MVP:
+
+- Nome: `jurisflow`
+- Project ref: `pmlffujdgdimrmfirxhf`
+- Regiao: `sa-east-1`
+- URL: `https://pmlffujdgdimrmfirxhf.supabase.co`
+- Bucket privado: `case-documents`
+- Organizacao demo seedada: `org_demo_jurisflow`
+
+Segredos como `DATABASE_URL`, `DIRECT_URL` e `SUPABASE_SERVICE_ROLE_KEY` devem ser copiados do painel do Supabase e colocados apenas no `.env` local ou no provedor de deploy.
+
 ## Desenvolvimento local
 
 Instale as dependencias:
