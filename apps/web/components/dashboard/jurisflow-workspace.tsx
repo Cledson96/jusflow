@@ -32,6 +32,33 @@ type Client = {
   phone?: string | null;
 };
 
+type CaseDocument = {
+  id: string;
+  status: string;
+  fileName?: string | null;
+  signedUrl?: string | null;
+  documentItem?: { name: string };
+};
+
+type TriageQuestion = {
+  id: string;
+  fieldKey: string;
+  label: string;
+  required: boolean;
+  value: string;
+};
+
+type AiRun = {
+  id: string;
+  output: {
+    summary?: string;
+    relevantPoints?: string[];
+    missingDocuments?: string[];
+    suggestedQuestions?: string[];
+    whatsappMessage?: string;
+  };
+};
+
 type JurisCase = {
   id: string;
   title: string;
@@ -39,7 +66,10 @@ type JurisCase = {
   triageToken?: string;
   client: Client;
   caseType: CaseType;
-  documents?: { status: string }[];
+  documents?: CaseDocument[];
+  triageAnswers?: { value: string; question: { fieldKey: string; label: string } }[];
+  aiRuns?: AiRun[];
+  whatsappMessages?: { id: string; body: string }[];
 };
 
 type DashboardData = {
@@ -55,7 +85,28 @@ const fallbackCases: JurisCase[] = [
     status: "WAITING_DOCUMENTS",
     client: { id: "client-1", name: "Joao Silva" },
     caseType: { id: "type-1", name: "Vinculo PJ/CLT" },
-    documents: [{ status: "PENDING" }, { status: "PENDING" }, { status: "RECEIVED" }]
+    documents: [
+      { id: "doc-1", status: "PENDING", documentItem: { name: "Contrato PJ" } },
+      { id: "doc-2", status: "PENDING", documentItem: { name: "Notas fiscais" } },
+      { id: "doc-3", status: "RECEIVED", documentItem: { name: "Documentos pessoais" } }
+    ],
+    aiRuns: [
+      {
+        id: "ai-1",
+        output: {
+          summary: "Cliente relata atuacao como PJ com horario fixo e gestor direto.",
+          missingDocuments: ["Contrato PJ", "Notas fiscais"],
+          whatsappMessage:
+            "Ola, Joao Silva. Para avancarmos na analise inicial, preciso que envie Contrato PJ e Notas fiscais."
+        }
+      }
+    ],
+    whatsappMessages: [
+      {
+        id: "msg-1",
+        body: "Ola, Joao Silva. Para avancarmos na analise inicial, preciso que envie Contrato PJ e Notas fiscais."
+      }
+    ]
   },
   {
     id: "fallback-2",
@@ -63,7 +114,10 @@ const fallbackCases: JurisCase[] = [
     status: "LAWYER_REVIEW",
     client: { id: "client-2", name: "Marina Costa" },
     caseType: { id: "type-2", name: "Verbas trabalhistas" },
-    documents: [{ status: "RECEIVED" }, { status: "PENDING" }]
+    documents: [
+      { id: "doc-4", status: "RECEIVED", documentItem: { name: "Carteira de trabalho" } },
+      { id: "doc-5", status: "PENDING", documentItem: { name: "Holerites" } }
+    ]
   }
 ];
 
@@ -83,7 +137,11 @@ export function JurisflowWorkspace() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [apiState, setApiState] = useState<"demo" | "connected">("demo");
+  const [selectedCaseId, setSelectedCaseId] = useState(fallbackCases[0]?.id ?? "");
+  const [caseDetail, setCaseDetail] = useState<JurisCase | null>(fallbackCases[0] ?? null);
+  const [triageDraft, setTriageDraft] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     clientName: "",
     phone: "",
@@ -124,6 +182,9 @@ export function JurisflowWorkspace() {
         caseTypeId: meta.caseTypes[0]?.id ?? current.caseTypeId
       }));
       setApiState("connected");
+      if (loadedCases[0] && !loadedCases.some((item) => item.id === selectedCaseId)) {
+        setSelectedCaseId(loadedCases[0].id);
+      }
     } catch {
       setApiState("demo");
     } finally {
@@ -134,6 +195,31 @@ export function JurisflowWorkspace() {
   useEffect(() => {
     void loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    if (!selectedCaseId) return;
+    void loadCaseDetail(selectedCaseId);
+  }, [selectedCaseId, apiState]);
+
+  async function loadCaseDetail(caseId: string) {
+    const fallback = cases.find((item) => item.id === caseId) ?? fallbackCases[0] ?? null;
+    if (caseId.startsWith("fallback") || apiState === "demo") {
+      setCaseDetail(fallback);
+      setTriageDraft({});
+      return;
+    }
+    try {
+      const loaded = await apiFetch<JurisCase>(`/cases/${caseId}`);
+      setCaseDetail(loaded);
+      setTriageDraft(
+        Object.fromEntries(
+          (loaded.triageAnswers ?? []).map((answer) => [answer.question.fieldKey, answer.value])
+        )
+      );
+    } catch {
+      setCaseDetail(fallback);
+    }
+  }
 
   async function createCase(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,6 +264,64 @@ export function JurisflowWorkspace() {
     });
     await loadWorkspace();
   }
+
+  async function saveTriage() {
+    if (!caseDetail || caseDetail.id.startsWith("fallback")) return;
+    await apiFetch(`/cases/${caseDetail.id}/triage`, {
+      method: "POST",
+      body: JSON.stringify({ answers: triageDraft })
+    });
+    await loadCaseDetail(caseDetail.id);
+    await loadWorkspace();
+  }
+
+  async function updateDocumentStatus(documentId: string, status: string) {
+    if (!caseDetail || caseDetail.id.startsWith("fallback")) return;
+    await apiFetch(`/cases/${caseDetail.id}/documents/${documentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    await loadCaseDetail(caseDetail.id);
+    await loadWorkspace();
+  }
+
+  async function generateAiSummary() {
+    if (!caseDetail || caseDetail.id.startsWith("fallback")) return;
+    setAiBusy(true);
+    try {
+      await apiFetch(`/cases/${caseDetail.id}/ai/triage-summary`, { method: "POST" });
+      await loadCaseDetail(caseDetail.id);
+      await loadWorkspace();
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function copyWhatsappMessage() {
+    const message = getWhatsappMessage(caseDetail);
+    if (!message) return;
+    await navigator.clipboard?.writeText(message);
+  }
+
+  function getWhatsappMessage(item: JurisCase | null) {
+    return (
+      item?.whatsappMessages?.[0]?.body ??
+      item?.aiRuns?.[0]?.output?.whatsappMessage ??
+      "Ola. Para avancarmos na analise inicial, preciso que envie os documentos pendentes listados no atendimento."
+    );
+  }
+
+  const triageFields = [
+    ["nomeEmpresa", "Nome da empresa"],
+    ["cargo", "Cargo ou funcao"],
+    ["periodoTrabalhado", "Periodo trabalhado"],
+    ["formaContratacao", "Forma de contratacao"],
+    ["horarioFixo", "Havia horario fixo?"],
+    ["gestorDireto", "Havia chefe direto?"],
+    ["resumoLivre", "Resumo livre do ocorrido"]
+  ];
+
+  const selectedSummary = caseDetail?.aiRuns?.[0]?.output;
 
   return (
     <main className="min-h-screen">
@@ -247,9 +391,22 @@ export function JurisflowWorkspace() {
                       {cases
                         .filter((item) => item.status === stage.key)
                         .map((item) => (
-                          <article key={item.id} className="rounded-md border border-border p-3">
-                            <p className="font-medium">{item.client.name}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">{item.caseType.name}</p>
+                          <article
+                            key={item.id}
+                            className={`rounded-md border p-3 transition ${
+                              selectedCaseId === item.id
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/50"
+                            }`}
+                          >
+                            <button
+                              className="block w-full text-left"
+                              type="button"
+                              onClick={() => setSelectedCaseId(item.id)}
+                            >
+                              <p className="font-medium">{item.client.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.caseType.name}</p>
+                            </button>
                             <div className="mt-3 flex items-center justify-between gap-2 text-xs">
                               <span>
                                 {(item.documents ?? []).filter((doc) => doc.status === "PENDING").length} docs pendentes
@@ -312,14 +469,104 @@ export function JurisflowWorkspace() {
               </section>
 
               <section className="rounded-lg border border-border bg-white p-4">
-                <h2 className="text-base font-semibold">Próximos casos</h2>
-                <div className="mt-3 space-y-3">
-                  {cases.slice(0, 4).map((item) => (
-                    <div key={item.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                      <p className="text-sm font-medium">{item.client.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.title}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold">Caso selecionado</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {caseDetail?.client.name ?? "Selecione um caso"}
+                    </p>
+                  </div>
+                  <span className="rounded bg-muted px-2 py-1 text-xs">{caseDetail?.caseType.name}</span>
+                </div>
+
+                <div className="mt-5 space-y-5">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Triagem</h3>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 px-3"
+                        onClick={() => void saveTriage()}
+                        disabled={apiState !== "connected" || !caseDetail || caseDetail.id.startsWith("fallback")}
+                      >
+                        Salvar
+                      </Button>
                     </div>
-                  ))}
+                    <div className="space-y-2">
+                      {triageFields.map(([fieldKey, label]) => (
+                        <label key={fieldKey} className="block text-xs font-medium text-muted-foreground">
+                          {label}
+                          <Input
+                            className="mt-1"
+                            value={triageDraft[fieldKey] ?? ""}
+                            onChange={(event) =>
+                              setTriageDraft((current) => ({
+                                ...current,
+                                [fieldKey]: event.target.value
+                              }))
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">Documentos</h3>
+                    <div className="space-y-2">
+                      {(caseDetail?.documents ?? []).map((document) => (
+                        <div
+                          key={document.id}
+                          className="flex items-center justify-between gap-3 rounded-md border border-border p-2 text-sm"
+                        >
+                          <span>{document.documentItem?.name ?? "Documento"}</span>
+                          <select
+                            className="rounded border border-border bg-white px-2 py-1 text-xs"
+                            value={document.status}
+                            disabled={apiState !== "connected" || caseDetail?.id.startsWith("fallback")}
+                            onChange={(event) => void updateDocumentStatus(document.id, event.target.value)}
+                          >
+                            <option value="PENDING">Pendente</option>
+                            <option value="RECEIVED">Recebido</option>
+                            <option value="REJECTED">Recusado</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Resumo IA</h3>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 px-3"
+                        onClick={() => void generateAiSummary()}
+                        disabled={aiBusy || apiState !== "connected" || !caseDetail || caseDetail.id.startsWith("fallback")}
+                      >
+                        {aiBusy ? "Gerando..." : "Gerar resumo IA"}
+                      </Button>
+                    </div>
+                    <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+                      {selectedSummary?.summary ??
+                        "A IA gera um rascunho com resumo, pontos relevantes, documentos faltantes e mensagem para WhatsApp."}
+                    </p>
+                    {Boolean(selectedSummary?.missingDocuments?.length) && (
+                      <ul className="mt-3 space-y-1 text-sm">
+                        {selectedSummary?.missingDocuments?.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="mt-3 w-full"
+                      onClick={() => void copyWhatsappMessage()}
+                    >
+                      Copiar mensagem WhatsApp
+                    </Button>
+                  </div>
                 </div>
               </section>
             </div>
