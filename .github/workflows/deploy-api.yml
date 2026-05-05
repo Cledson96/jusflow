@@ -95,4 +95,10 @@ jobs:
             test -n "$APP_DIR"
             cd "$APP_DIR"
             bash ./scripts/deploy.sh
-            curl --fail --silent http://127.0.0.1:4002/docs >/dev/null
+            for attempt in 1 2 3 4 5; do
+              if curl --fail --silent http://127.0.0.1:4002/docs >/dev/null; then
+                exit 0
+              fi
+              sleep 3
+            done
+            exit 1
